@@ -440,8 +440,10 @@
     } catch (e) { muted = wasMuted; then(); }
   }
   // Watch an ad to get one more use of a power-up. Without the SDK (local testing) it is just granted.
+  // Only a real ad platform can refill a power-up. Without one, used up means used up.
+  function adsAvailable() { return !!(sdk && sdk.environment !== 'disabled'); }
   function rewardedAd(onReward) {
-    if (!sdk) { onReward(); return; }
+    if (!adsAvailable()) return;
     var wasMuted = muted;
     try {
       sdk.ad.requestAd('rewarded', {
@@ -612,8 +614,8 @@
     powerBtns.forEach(function (btn) {
       var k = btn.getAttribute('data-power'), n = uses[k] || 0;
       var c = btn.querySelector('.count');
-      c.textContent = n > 0 ? n : 'AD';
-      c.classList.toggle('ad', n === 0);
+      c.textContent = n > 0 ? n : (adsAvailable() ? 'AD' : '0');
+      c.classList.toggle('ad', n === 0 && adsAvailable());
       btn.classList.toggle('empty', n === 0);
       btn.classList.toggle('active', powerMode === k);
     });
