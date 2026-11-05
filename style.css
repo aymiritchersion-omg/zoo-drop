@@ -295,3 +295,14 @@ html, body {
   letter-spacing: 0.5px;
 }
 .power.empty svg { opacity: 0.45; }
+
+/* hidden native switch used only to trigger iPhone haptics */
+.haptic-switch {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

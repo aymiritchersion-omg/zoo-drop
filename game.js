@@ -225,6 +225,32 @@
     o.connect(g).connect(a.destination);
     o.start(t); o.stop(t + 0.15);
   }
+  // ---------- Haptics ----------
+  // Android: the Vibration API. iPhone: Safari has no vibration API, but toggling a
+  // native switch control (iOS 18+) gives a light tick, so we flip a hidden one.
+  var iosSwitch = document.getElementById('haptic-switch');
+  var iosHapticOk = !!(iosSwitch && 'switch' in iosSwitch) || /iPhone|iPad/.test(navigator.userAgent);
+  function tickIOS(times) {
+    if (!iosHapticOk || !iosSwitch) return;
+    for (var i = 0; i < times; i++) {
+      setTimeout(function () { iosSwitch.click(); }, i * 70);
+    }
+  }
+  function haptic(kind, tier) {
+    if (muted) return;
+    var pattern, ticks = 1;
+    if (kind === 'drop') { pattern = 8; }
+    else if (kind === 'merge') { pattern = 12 + (tier || 0) * 4; ticks = 1; }
+    else if (kind === 'combo') { pattern = [15, 40, 15, 40, 25]; ticks = 3; }
+    else if (kind === 'big') { pattern = [30, 40, 60]; ticks = 2; }
+    else if (kind === 'bomb') { pattern = [50, 30, 20]; ticks = 2; }
+    else if (kind === 'lift') { pattern = [10, 30, 10]; ticks = 2; }
+    else if (kind === 'over') { pattern = [70, 50, 70, 50, 160]; ticks = 3; }
+    else return;
+    try { if (navigator.vibrate && navigator.vibrate(pattern)) return; } catch (e) {}
+    tickIOS(ticks);
+  }
+
   function boom() {
     var a = ac(); if (!a) return;
     var t = a.currentTime;
@@ -553,11 +579,13 @@
     if (tier + 1 < TIERS.length) {
       var c = addScore(SCORE[tier], x, y);
       pop(tier, c);
+      haptic(c >= 3 ? 'combo' : 'merge', tier);
       var nb = spawnAnimal(x, y, tier + 1, { popIn: true });
       Body.setVelocity(nb, { x: (vx || 0) * 0.5, y: Math.min((vy || 0) * 0.5, 0) });
     } else {
       addScore(TOP_BONUS, x, y);
       pop(tier, 8);
+      haptic('big');
       shake = 12;
       burst(x, y, '#f7c948', 40, 90);
     }
@@ -606,6 +634,7 @@
       lineY = Math.max(40, lineY - LIFT_STEP);
       floaters.push({ x: W / 2, y: lineY + 30, text: 'LINE UP!', life: 1.2, size: 26, color: '#4f8a2c' });
       pop(2, 3);
+      haptic('lift');
       renderPowers();
       return;
     }
@@ -624,6 +653,7 @@
       burst(x, y, '#e8604c', 12, TIERS[tier].r);
       shake = 9;
       boom();
+      haptic('bomb');
     } else if (mode === 'boost') {
       uses.boost--;
       World.remove(world, b);
@@ -658,6 +688,7 @@
     var t = TIERS[currentTier];
     var x = clamp(pointerX, WALL + t.r + 2, W - WALL - t.r - 2);
     spawnAnimal(x, DROP_Y, currentTier);
+    haptic('drop');
     combo = 0; lastMergeAt = -1e9;   // a combo is one drop's chain reaction, not fast tapping
     currentTier = nextTier; nextTier = pickTier();
     dropped++;
@@ -671,6 +702,7 @@
     gamesPlayed++;
     shake = 14;
     sadTune();
+    haptic('over');
     music.stop();
     setPowerMode(null);
     sdkCall('game.gameplayStop');
