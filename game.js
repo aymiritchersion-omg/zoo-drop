@@ -620,9 +620,29 @@
       btn.classList.toggle('active', powerMode === k);
     });
   }
+  var boostIds = {};
+  function boostCandidates() {
+    var list = animals(), ids = {}, n = 0;
+    for (var i = 0; i < list.length; i++) {
+      var b = list[i];
+      if (b.tier + 1 >= TIERS.length) continue;
+      var reach = TIERS[b.tier + 1].r * 2 * 1.2;
+      for (var j = 0; j < list.length; j++) {
+        var o = list[j];
+        if (o === b || o.tier !== b.tier + 1) continue;
+        var dx = o.position.x - b.position.x, dy = o.position.y - b.position.y;
+        if (Math.sqrt(dx * dx + dy * dy) < reach) { ids[b.id] = true; n++; break; }
+      }
+    }
+    boostIds = ids;
+    return n;
+  }
   function setPowerMode(mode) {
     powerMode = mode;
     elTargetHint.classList.toggle('hidden', !mode);
+    elTargetHint.innerHTML = mode === 'boost'
+      ? 'Tap a glowing animal <small>(it will merge right away)</small>'
+      : 'Tap an animal <small>(tap empty space to cancel)</small>';
     renderPowers();
   }
   function usePower(k) {
@@ -640,6 +660,10 @@
       renderPowers();
       return;
     }
+    if (k === 'boost' && powerMode !== 'boost' && boostCandidates() === 0) {
+      floaters.push({ x: W / 2, y: H * 0.45, text: 'No chain yet', life: 1.2, size: 26, color: '#8a6d52' });
+      return;
+    }
     setPowerMode(powerMode === k ? null : k);
   }
   function applyPowerAt(px, py) {
@@ -648,6 +672,7 @@
     setPowerMode(null);
     if (!hits.length) return;
     var b = hits[0], x = b.position.x, y = b.position.y, tier = b.tier;
+    if (mode === 'boost' && !boostIds[b.id]) return;   // only the glowing ones count
     if (mode === 'bomb') {
       uses.bomb--;
       World.remove(world, b);
@@ -741,12 +766,14 @@
     var t = TIERS[b.tier];
     var img = images[t.name];
     var sc = 1;
+    var dim = powerMode === 'boost' && b.id !== undefined && !boostIds[b.id];
     if (b.popIn) {
       var p = (now - b.popIn) / 260;
       if (p >= 1) { b.popIn = 0; }
       else { sc = 0.55 + 0.45 * (1 - Math.pow(1 - p, 3)) + Math.sin(p * Math.PI) * 0.18; }
     }
     ctx.save();
+    if (dim) ctx.globalAlpha *= 0.3;
     ctx.translate(b.position.x, b.position.y);
     ctx.rotate(b.angle);
     ctx.scale(sc, sc);
@@ -818,6 +845,23 @@
       }
     }
 
+    // upgrade picking: refresh the candidates and ring the ones that will chain
+    if (powerMode === 'boost') {
+      boostCandidates();
+      for (var g = 0; g < list.length; g++) {
+        var gb = list[g];
+        if (!boostIds[gb.id]) continue;
+        ctx.save();
+        ctx.globalAlpha = 0.7 + 0.3 * Math.sin(now / 110);
+        ctx.strokeStyle = '#f7c948';
+        ctx.lineWidth = 6;
+        ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(gb.position.x, gb.position.y, TIERS[gb.tier].r + 6, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#3f2d20'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(gb.position.x, gb.position.y, TIERS[gb.tier].r + 10, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+    }
     // targeting mode: dim everything a little and pulse
     if (powerMode) {
       ctx.save();
