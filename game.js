@@ -17,7 +17,7 @@
   var DROP_COOLDOWN = 380;         // ms between drops
   var MAX_DROP_TIER = 4;           // only the 5 smallest animals get dropped
   var COMBO_WINDOW = 1300;         // ms between merges to keep a combo going
-  var POWER_USES = { bomb: 3, boost: 2, lift: 2 };
+  var POWER_USES = { bomb: 3, boost: 2, lift: 2, shuffle: 2 };
 
   // Small animals are small on purpose: more fit in a row and they slip into gaps.
   var TIERS = [
@@ -245,6 +245,7 @@
     else if (kind === 'big') { pattern = [30, 40, 60]; ticks = 2; }
     else if (kind === 'bomb') { pattern = [50, 30, 20]; ticks = 2; }
     else if (kind === 'lift') { pattern = [10, 30, 10]; ticks = 2; }
+    else if (kind === 'shuffle') { pattern = [20, 30, 20, 30, 20]; ticks = 3; }
     else if (kind === 'over') { pattern = [70, 50, 70, 50, 160]; ticks = 3; }
     else return;
     try { if (navigator.vibrate && navigator.vibrate(pattern)) return; } catch (e) {}
@@ -260,6 +261,22 @@
     src.buffer = buf; lp.type = 'lowpass'; lp.frequency.setValueAtTime(900, t);
     g.gain.setValueAtTime(0.5, t);
     src.connect(lp).connect(g).connect(a.destination);
+    src.start(t);
+  }
+  function whoosh() {
+    var a = ac(); if (!a) return;
+    var t = a.currentTime, len = 0.7;
+    var buf = a.createBuffer(1, a.sampleRate * len, a.sampleRate), d = buf.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    var src = a.createBufferSource(), g = a.createGain(), bp = a.createBiquadFilter();
+    src.buffer = buf; bp.type = 'bandpass'; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(300, t);
+    bp.frequency.exponentialRampToValueAtTime(2400, t + 0.35);
+    bp.frequency.exponentialRampToValueAtTime(400, t + len);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.4, t + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    src.connect(bp).connect(g).connect(a.destination);
     src.start(t);
   }
   function sadTune() {
@@ -606,7 +623,7 @@
 
   // ---------- Power-ups ----------
   function resetPowers() {
-    uses = { bomb: POWER_USES.bomb, boost: POWER_USES.boost, lift: POWER_USES.lift };
+    uses = { bomb: POWER_USES.bomb, boost: POWER_USES.boost, lift: POWER_USES.lift, shuffle: POWER_USES.shuffle };
     setPowerMode(null);
     renderPowers();
   }
@@ -649,6 +666,29 @@
     if (!running || over) return;
     if (uses[k] <= 0) {
       rewardedAd(function () { uses[k] = (uses[k] || 0) + 1; renderPowers(); });
+      return;
+    }
+    if (k === 'shuffle') {
+      var list = animals();
+      if (!list.length) return;
+      uses.shuffle--;
+      var xs = list.map(function (b) { return b.position.x; });
+      for (var i = xs.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var tmp = xs[i]; xs[i] = xs[j]; xs[j] = tmp; }
+      var now = performance.now();
+      list.forEach(function (b, idx) {
+        var r = TIERS[b.tier].r;
+        Body.setPosition(b, { x: clamp(xs[idx], WALL + r + 2, W - WALL - r - 2), y: b.position.y - rand(30, 110) });
+        Body.setVelocity(b, { x: rand(-5, 5), y: rand(-10, -5) });
+        Body.setAngularVelocity(b, (Math.random() < 0.5 ? -1 : 1) * rand(0.3, 0.42));   // about two full turns before it lands
+        b.merging = false;
+        b.born = now + 500;     // a short grace period so the tumble itself cannot cause a game over
+      });
+      overSince = 0;
+      shake = 10;
+      whoosh();
+      haptic('shuffle');
+      floaters.push({ x: W / 2, y: H * 0.45, text: 'SHUFFLE!', life: 1.3, size: 30, color: '#3f7fc8' });
+      renderPowers();
       return;
     }
     if (k === 'lift') {

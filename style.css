@@ -253,12 +253,12 @@ html, body {
 }
 #powers {
   display: flex;
-  gap: 14px;
+  gap: 10px;
 }
 .power {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   background: var(--board);
   border-radius: 16px;
   display: flex;
